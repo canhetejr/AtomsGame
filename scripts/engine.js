@@ -1,229 +1,292 @@
-//debug
-function print(text){
+'use strict';
+
+function debug(text) {
     console.log(text);
 }
 
-//SoundTracks
-SoundIntro = document.getElementById("intro");
-SoundBackground = document.getElementById("background");
-SoundExplosion = document.getElementById("explosion");
-SoundUp = document.getElementById("up");
-SoundLose = document.getElementById("lose");
+// SoundTracks
+const soundIntro = document.getElementById("intro");
+const soundBackground = document.getElementById("background");
+const soundExplosion = document.getElementById("explosion");
+const soundUp = document.getElementById("up");
+const soundLose = document.getElementById("lose");
 
-SoundIntro.volume-=0.8
-SoundBackground.volume-=0.8
+// Set initial volume
+soundIntro.volume = 0.2;
+soundBackground.volume = 0.2;
 
-//Variáveis do jogo
-var canvas, context, LARGURA, ALTURA, img, GameStatus = 0, record, GRAVITY = 2, life = 3, score = 0, aux=0, sound = false, frames = 0,
+// Game Variables
+var context;
+var img;
 
-quiz = {
+let canvas, width, height;
+let gameStatus = 0;
+let record = 0;
+let gravity = 2;
+let life = 3;
+let score = 0;
+let quizElementSpawned = false;
+let frames = 0;
+
+// Language Config
+const LANGUAGES = {
+    PT: 'pt',
+    EN: 'en'
+};
+let currentLanguage = LANGUAGES.PT;
+
+const TEXTS = {
+    pt: {
+        record: "Recorde: ",
+        welcome: "Ei! Neste jogo, você deve selecionar o elemento apresentado pelo gato (à esquerda da tela).\n\nVocê começa com três vidas. Se perder o elemento correto, perde uma vida. Para cada elemento correto, você ganha um ponto!\n\nDivirta-se! :)\n\n\nEste jogo foi desenvolvido por Allex Lima, Daniel Bispo, Paulo Moraes e Renan Barroncas (2015).\nAtualizado em 2025.",
+        credits: "Desenvolvido por Allex Lima..."
+    },
+    en: {
+        record: "Record: ",
+        welcome: "Hey! In this game, you must select the element shown by the cat (on the left of the screen).\n\nYou start with three lives. If you miss the correct element, you lose a life. For each correct element selected, you get a point!\n\nHave fun! :)\n\n\nThis game was developed by Allex Lima, Daniel Bispo, Paulo Moraes and Renan Barroncas (2015).\nUpdated in 2025.",
+        credits: "Developed by Allex Lima..."
+    }
+};
+
+const quiz = {
     name: " ",
-    simbol: null
-},
+    symbol: null
+};
 
-Status = {
-    start: 0,
-    playing: 1,
-},
+const STATUS = {
+    START: 0,
+    PLAYING: 1,
+};
 
-
-elemento = {
-    _obs: [],
-    elementDelay: 0,
+const fallingElements = {
+    items: [],
+    spawnDelay: 0,
     baseLevel: 100,
 
-    insere: function(){
-	    if(aux == 0 && (this._obs.length > Math.floor(3 * Math.random()))){
-		    this._obs.push({
-			    width: 150,
-				height: 150,
-				gravity: GRAVITY,
-				velocity: 0,
-				x: 300 + Math.floor(571 * Math.random()),
-				y: Math.floor(50 * Math.random()),
-				name: quiz.name,
-				simbol: quiz.simbol
-			});    
-			aux = 1;    	
-		}else{
-	    	this._obs.push({
-	            width: 150,
-	            height: 150,
-	            gravity: GRAVITY,
-	            velocity: 0,
-	            x: 300 + Math.floor(571 * Math.random()),
-	            y: 0,
-	            name: PeriodTable[Math.floor(PeriodTable.length * Math.random())].name,
-	            simbol: PeriodTable[Math.floor(PeriodTable.length * Math.random())].id
-	        });   
-        } 	       
-        this.elementDelay = this.baseLevel +  Math.floor(51 * Math.random());
+    spawn: function() {
+        if (!quizElementSpawned && (this.items.length > Math.floor(3 * Math.random()))) {
+            this.items.push({
+                width: 150,
+                height: 150,
+                gravity: gravity,
+                velocity: 0,
+                x: 300 + Math.floor(571 * Math.random()),
+                y: Math.floor(50 * Math.random()),
+                name: quiz.name, // Display name is set when picked
+                symbol: quiz.symbol
+            });
+            quizElementSpawned = true;
+        } else {
+            const randomEl = PERIODIC_TABLE[Math.floor(PERIODIC_TABLE.length * Math.random())];
+            const displayName = currentLanguage === LANGUAGES.PT ? randomEl.name : randomEl.nameEn;
+            this.items.push({
+                width: 150,
+                height: 150,
+                gravity: gravity,
+                velocity: 0,
+                x: 300 + Math.floor(571 * Math.random()),
+                y: 0,
+                name: displayName,
+                symbol: randomEl.id
+            });
+        }
+        this.spawnDelay = this.baseLevel + Math.floor(51 * Math.random());
     },
 
-    update: function(){
-        if(this.elementDelay == 0) {   	
-            this.insere();
-            if(this.baseLevel >= 30)
+    update: function() {
+        if (this.spawnDelay <= 0) {
+            this.spawn();
+            if (this.baseLevel >= 30)
                 this.baseLevel--;
-        }else
-            this.elementDelay--;      
+        } else {
+            this.spawnDelay--;
+        }
 
-        for(var i = 0, tam = this._obs.length; i < tam; i++) {
-            var obs = this._obs[i];
+        for (let i = 0; i < this.items.length; i++) {
+            let obs = this.items[i];
             obs.velocity += obs.gravity;
             obs.y = obs.velocity;
-            limit = ALTURA - obs.height/2 - 110;
+            const limit = height - obs.height / 2 - 110;
 
-            if(obs.y >= limit) {
-                this._obs.splice(i, 1);
-                tam--;
+            if (obs.y >= limit) {
+                this.items.splice(i, 1);
                 i--;
-                if(life > 0 && obs.simbol == quiz.simbol){
-                    elementSort();
+
+                if (life > 0 && obs.symbol === quiz.symbol) {
+                    pickRandomQuizElement();
                     life--;
-                    SoundExplosion.play();
-                    aux = 0;
+                    soundExplosion.play();
+                    quizElementSpawned = false;
                 }
-                if(life == 0)
-                    SoundLose.play();
+
+                if (life === 0) {
+                    soundLose.play();
+                }
             }
         }
     },
 
-    draw: function(){
-        for(var i = 0, tam = this._obs.length; i < tam; i++) {
-            var obs = this._obs[i];
-            element.print(obs.x, obs.y);
+    draw: function() {
+        for (let i = 0; i < this.items.length; i++) {
+            let obs = this.items[i];
+            elementSprite.print(obs.x, obs.y);
 
             context.fillStyle = "#890305";
             context.textAlign = "center";
             context.font = "25px Passion One, Arial";
-            context.fillText(obs.simbol, (obs.x+obs.width/2)-10, (obs.y+obs.height/2)-5);
+            context.fillText(obs.symbol, (obs.x + obs.width / 2) - 10, (obs.y + obs.height / 2) - 5);
         }
     },
 
-    click: function(event){
-        var pos = {
-            x: event.clientX - canvas.getBoundingClientRect().left,
-            y: event.clientY - canvas.getBoundingClientRect().top
-        }
-        for(var i = 0, tam = this._obs.length; i < tam; i++) {
-            var obs = this._obs[i];
-            if ((pos.x >= obs.x) && (pos.x <= (obs.x + obs.width)) && (pos.y >= obs.y) && (pos.y <= (obs.y + obs.height))) {
-                this._obs.splice(i, 1);
-                tam--;
+    handleClick: function(x, y) {
+        for (let i = 0; i < this.items.length; i++) {
+            let obs = this.items[i];
+
+            if ((x >= obs.x) && (x <= (obs.x + obs.width)) && (y >= obs.y) && (y <= (obs.y + obs.height))) {
+                this.items.splice(i, 1);
                 i--;
-                if(life > 0 && obs.simbol == quiz.simbol){
+
+                if (life > 0 && obs.symbol === quiz.symbol) {
                     score++;
-                    elemento._obs = [];
-                    GRAVITY += 0.1;
-                    elementSort();
-                    SoundUp.play();
-                    aux = 0;
-                }else{
-                    if(life > 0)
+                    fallingElements.items = [];
+                    gravity += 0.1;
+                    pickRandomQuizElement();
+                    soundUp.play();
+                    quizElementSpawned = false;
+                } else {
+                    if (life > 0)
                         life--;
-                    SoundExplosion.play();
+                    soundExplosion.play();
                 }
-                if(life == 0)
-                    SoundLose.play();
+
+                if (life === 0)
+                    soundLose.play();
             }
         }
     }
-},
+};
 
-panel = {
-    QuizElement: function(){
+const panel = {
+    quizElement: function() {
         context.fillStyle = "#fffc00";
         context.textAlign = "center";
         context.font = "25px Sigmar One, Arial";
         context.fillText(quiz.name, 127, 286);
     },
-    PointsBoard: function(){
+    pointsBoard: function() {
         pointBoard.print(41, 0);
         context.fillStyle = "#fff";
         context.textAlign = "center";
         context.font = "18px Arial";
-        context.fillText("Record: "+record, 155, 67);
+        context.fillText(TEXTS[currentLanguage].record + record, 155, 67);
         context.font = "40px Arial";
         context.fillText(score, 153, 115);
-        lifeHeart[life].print(103, 130);
+
+        if (life > 0 && life <= 3) {
+             if (lifeHeart[life]) {
+                lifeHeart[life].print(103, 130);
+             }
+        }
     },
-    SplashScreen: function(){
+    splashScreen: function() {
         playButton.print(56, -50);
     },
-    draw: function(){
-        this.QuizElement();
-        this.PointsBoard();
+    draw: function() {
+        this.quizElement();
+        this.pointsBoard();
     }
 };
 
-function elementSort(){
-    var rand = Math.floor(PeriodTable.length * Math.random());
-    quiz.name = PeriodTable[rand].name;
-    quiz.simbol = PeriodTable[rand].id;
+function pickRandomQuizElement() {
+    const rand = Math.floor(PERIODIC_TABLE.length * Math.random());
+    const el = PERIODIC_TABLE[rand];
+    quiz.name = currentLanguage === LANGUAGES.PT ? el.name : el.nameEn;
+    quiz.symbol = el.id;
 }
 
-function play(){
-	frames++;
-	background.print(0, 0);
+function play() {
+    frames++;
+
+    background.print(0, 0);
+
     panel.draw();
 
-    if(life == 0) {
-        GameStatus = Status.start;
+    if (life === 0) {
+        gameStatus = STATUS.START;
     }
 
-    if(GameStatus == Status.start) {
+    if (gameStatus === STATUS.START) {
         record = localStorage.getItem("record");
-        if(record == null)
+        if (record == null)
             record = 0;
-        if(score > record)
+
+        if (score > record)
             localStorage.setItem("record", score);
 
-        panel.SplashScreen();
+        panel.splashScreen();
         quiz.name = "";
-        SoundBackground.pause();
-        SoundIntro.play();
-        canvas.onclick = function(event){
-            score = 0;
-            life = 3;
-            elemento._obs = [];
-            aux = 0;
-            GRAVITY = 2;
-            elementSort();
-            alert("Hey, nesse game você deve selecionar o elemento que for apresentado pelo gato (à esqueda da tela). Você possui, inicialmente, três vidas e conforme você deixa passar um elemento apresentado, você perde uma vida. Para cada elemento acertado, um ponto!\n\n Divirta-se! :) \n\n\nEste jogo foi desenvolvido por Allex Lima, Daniel Bispo, Paulo Moraes e Renan Barroncas, alunos do 4º período (2015) do curso de Engenharia da Computação da UniNorte Laureate.\n\nOrientadora: Profª Drª Rebecca Freire\n")
-            GameStatus = Status.playing;
-        }
-    }else if(GameStatus == Status.playing){
-        elemento.draw();
-        elemento.update();
-        SoundIntro.pause();
-        SoundBackground.play();
-        canvas.onclick = function(event){
-            elemento.click(event);
-        }
+
+        soundBackground.pause();
+    } else if (gameStatus === STATUS.PLAYING) {
+        fallingElements.draw();
+        fallingElements.update();
+        soundIntro.pause();
+        soundBackground.play().catch(e => console.log("Audio play error: ", e));
     }
 
     window.requestAnimationFrame(play);
 }
 
-function main(){
-	ALTURA = window.innerHeight;
-	LARGURA = window.innerWidth;
+function onCanvasClick(event) {
+    const rect = canvas.getBoundingClientRect();
+    const pos = {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top
+    };
 
-	canvas = document.createElement("canvas");
-	canvas.width = 1000;
-	canvas.height = 600;
+    if (gameStatus === STATUS.START) {
+        // Start Game
+        score = 0;
+        life = 3;
+        fallingElements.items = [];
+        quizElementSpawned = false;
+        gravity = 2;
+        pickRandomQuizElement();
 
-	context = canvas.getContext("2d");
-	document.body.appendChild(canvas);
+        soundIntro.play().catch(e => console.log("Audio play error: ", e));
 
-	img = new Image();
-	img.src = "sprites/images.png";
-
-    GameStatus = Status.start;
-	play();
+        gameStatus = STATUS.PLAYING;
+    } else if (gameStatus === STATUS.PLAYING) {
+        fallingElements.handleClick(pos.x, pos.y);
+    }
 }
 
-//Inicia o jogo
+function main() {
+    height = window.innerHeight;
+    width = window.innerWidth;
+
+    canvas = document.createElement("canvas");
+    canvas.width = 1000;
+    canvas.height = 600;
+
+    context = canvas.getContext("2d");
+    document.body.appendChild(canvas);
+
+    canvas.addEventListener('click', onCanvasClick);
+
+    img = new Image();
+    img.src = "sprites/images.png";
+
+    // Check browser language or default to PT
+    const userLang = navigator.language || navigator.userLanguage;
+    if (userLang.startsWith('en')) {
+        currentLanguage = LANGUAGES.EN;
+    } else {
+        currentLanguage = LANGUAGES.PT;
+    }
+
+    gameStatus = STATUS.START;
+    play();
+}
+
 main();
