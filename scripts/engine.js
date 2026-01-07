@@ -255,8 +255,6 @@ function onCanvasClick(event) {
 
         soundIntro.play().catch(e => console.log("Audio play error: ", e));
 
-        alert(TEXTS[currentLanguage].welcome);
-
         gameStatus = STATUS.PLAYING;
     } else if (gameStatus === STATUS.PLAYING) {
         fallingElements.handleClick(pos.x, pos.y);
